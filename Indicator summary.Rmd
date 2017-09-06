@@ -1,5 +1,91 @@
-ffasfaadsfadff
----sadfasfasf
+---
+title: "Indicator analysis"
+author: "AG"
+date: "24 August 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+library(plyr)
+library(reshape2)
+library(ggplot2)
+library(gridExtra)
+library(pander)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+```
+
+```{r importdatasets}
+data.path <-"original-data"
+vacc15 <- read.csv(file.path(data.path,"2015_vacc.csv"))
+vacc16 <- read.csv(file.path(data.path,"2016_vacc.csv"))
+vacc15 <- tbl_df(vacc15)
+vacc16 <- tbl_df(vacc16)
+```
+
+```{r data cleaning vacc15}
+#remove duplicates (there turn out not to be any duiplicates here)
+dup <- distinct(vacc15, DogId, .keep_all = TRUE)
+vacc15 <- vacc15[!duplicated(vacc15$DogId), ]
+
+#str(vacc15)
+#table(vacc15$Neuter.Status, useNA = "always")
+
+#condense $Ownership factors
+#table(vacc15$Ownership, useNA = "always")
+vacc15$Ownership <-as.factor(as.character(vacc15$Ownership))
+vacc15$ownership_clean <- revalue(vacc15$Ownership, c("Free Roaming"="Not owned", "Owner Present" = "Owned"))
+table(vacc15$ownership_clean, useNA = "always")
+# check levels
+levels(vacc15$ownership_clean)
+# drop "" value
+vacc15$ownership_clean <- droplevels(vacc15$ownership_clean)
+
+#table(vacc15$Ownership, useNA = "always")
+
+# spread $health
+vacc15$lame_status <- grepl("lame", vacc15$health)
+vacc15$tvt_status <- grepl("tvt", vacc15$health)
+vacc15$ear_status <- grepl("ear", vacc15$health)
+vacc15$wound_status <- grepl("wound", vacc15$health)
+
+#create dates
+vacc15$date <- as.Date(vacc15$Date.Created, "%d/%m/%Y")
+#vacc15$date <- dmy(vacc15$Date.Created)
+
+#create times
+vacc15$date.time <- strptime(paste(vacc15$Date.Created, vacc15$Time.Created), format='%d/%m/%Y %I:%M %p', tz="Africa/Blantyre")
+vacc15$time <-  strftime(vacc15$date.time, format="%H:%M:%S")
+
+
+
+
+#create a vacc day-team batch ID
+vacc15$newID <- paste(vacc15$Date.Created, strtrim(vacc15$UserName,3), sep='_')
+
+ 
+#clean levels for Neuter status
+vacc15$Neuter.Status <- revalue(vacc15$Neuter.Status, c("unknown sex" = "unknown.sex"))
+
+#create clean dataframe
+vacc15a <- vacc15%>%
+  select(date, UserName, Team, FormName, DogId:date.time, -Ownership,  - Dog.address, -date.time)
+
+
+
+```
+
+
+```{r summarise vacc15}
+vacc15a%>%
+  group_by(Neuter.Status, ownership_clean, Sex)%>%
+  filter(Type == "Roaming")%>%
+  summarise(n = n())%>%
+  spread(Neuter.Status, n)%>%
+  mutate(perc_neut = round(Neutered / (Entire + Neutered + unknown.sex) *100,2))
 
 ```
 
